@@ -212,9 +212,9 @@ def evaluate(model, img_path, device):
 
 if __name__ == "__main__":
     #Configuração do Treino
-    image_dir = "./Teste"
+    image_dir = "./Database"
     batch_size = 2
-    epochs = 2000
+    epochs = 10000
     #Repetições pela database. 1 epoch igual a um loop por todas as imagens
     scale = 2
 
@@ -232,7 +232,7 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), "srcnn.pth")
     print("treino finalizado, salvando modelo")
 
-    # ---------------- Plot Loss / PSNR / SSIM ----------------
+    #Grafico do Plot Loss / PSNR / SSIM
     plt.figure(figsize=(12, 4))
 
     plt.subplot(1, 3, 1)
@@ -257,7 +257,7 @@ if __name__ == "__main__":
     plt.savefig("Metricas.png")
     plt.show()
 
-    # Test on one image
+    #Resultado final após treino
     pred_img = evaluate(model, dataset.image_paths[0], device)
     pred_img.save("Resultado.png")
 
