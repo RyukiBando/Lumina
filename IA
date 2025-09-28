@@ -175,7 +175,7 @@ def train(model, dataloader, epochs=10, lr=1e-4, device="cuda"):
         print(f"Epoch [{epoch+1}/{epochs}] "
               f"Loss: {avg_loss:.6f} | PSNR: {avg_psnr:.2f} dB | SSIM: {avg_ssim:.4f}")
 
-    return model, history_loss, history_psnr, history_ssim
+    return model, history_loss, history_psnr, history_ssim, avg_psnr, avg_ssim
 
 # Salva a imagem para validação
 def evaluate(model, img_path, device):
@@ -203,17 +203,20 @@ if __name__ == "__main__":
     # Configuração do Treino
     image_dir = "./Database/Set5"
     batch_size = 4
-    epochs = 1000  # Repetições pela base de dados. 1 epoch igual a um loop por todas as imagens
+    epochs = 10  # Repetições pela base de dados. 1 epoch igual a um loop por todas as imagens
     scale = 2
     dataset = SRDataset(image_dir, scale=scale)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     model = SRCNN()
 
     # Train
-    model, loss_hist, psnr_hist, ssim_hist = train(
+    model, loss_hist, psnr_hist, ssim_hist, avg_psnr, avg_ssim = train(
         model, dataloader, epochs=epochs, lr=1e-4, device=device
     )
     torch.save(model.state_dict(), "srcnn.pth")
+    with open("model_PSNR_SSIM.txt", "w") as file:
+        file.write(f"PSNR: {avg_psnr:.2f}\n")
+        file.write(f"SSIM: {avg_ssim:.2f}\n")
     print("treino finalizado, salvando modelo")
 
     # Final do Timer
