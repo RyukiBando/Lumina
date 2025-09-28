@@ -3,7 +3,9 @@ import glob
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torchvision.transforms.functional as TF
 import random
+import time
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image, ImageFilter
 import numpy as np
@@ -12,7 +14,10 @@ import matplotlib.pyplot as plt
 from math import log10
 from skimage.metrics import structural_similarity as ssim
 
-#Verifica se aceleradores de AI da GPU existe, se não, e feita pela CPU
+# inicio temporizador
+timer = time.perf_counter()
+
+# Verifica se aceleradores de AI da GPU existe, se não, e feita pela CPU
 if torch.cuda.is_available():
     device = torch.device("cuda")
     print("GPU CUDA ou ROCM detectado")
@@ -21,28 +26,22 @@ else:
     print("Usando CPU, GPU nao detectada")
 
 # Modelo SRCNN para Upscaling
-
 class SRCNN(nn.Module):
     def __init__(self):
         super(SRCNN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=9, padding= 4)
-#(Primeira camada(Patch extraction) com 64 filtros e kernel size de 9, padding = (kernel(9) - 1)/ 2
-        self.conv2 = nn.Conv2d(64, 32, kernel_size=1, padding= 0)
-#(Segunda camada(Non-linear mapping) recebe 64 filtros da primeira e trabalha com 32 filtros e kernel size de 1, padding = (kernel(1) - 1)/ 2
-        self.conv3 = nn.Conv2d(32, 1, kernel_size=5, padding= 2)
-#(Terceira camada(Reconstruction) recebe 32 filtros da segunda e reduz para uma só, kernel size de 5, padding = (kernel(5) - 1)/ 2
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=9, padding=4)  # (Primeira camada(Patch extraction) com 64 filtros e kernel size de 9, padding = (kernel(9) - 1)/ 2
+        self.conv2 = nn.Conv2d(64, 32, kernel_size=1, padding=0)  # (Segunda camada(Non-linear mapping) recebe 64 filtros da primeira e trabalha com 32 filtros e kernel size de 1, padding = (kernel(1) - 1)/ 2
+        self.conv3 = nn.Conv2d(32, 1, kernel_size=5, padding=2)  # (Terceira camada(Reconstruction) recebe 32 filtros da segunda e reduz para uma só, kernel size de 5, padding = (kernel(5) - 1)/ 2
         self._initialize_weights()
 
-#Transformar os valores linear gerado pela Convolução em não linear
+    # Transformar os valores linear gerado pela Convolução em não linear
     def forward(self, x):
         x = torch.relu(self.conv1(x))
-        x = torch.relu(self.conv2(x))
-#Pega o valor gerado pelo Patch Extraction e Non-linear mapping e o deixa nao linear
-        x = self.conv3(x)
-#Valor final, não pode ser modificado, ja que deve ser o resultado final
+        x = torch.relu(self.conv2(x))  # Pega o valor gerado pelo Patch Extraction e Non-linear mapping e o deixa nao linear
+        x = self.conv3(x)  # Valor final, não pode ser modificado, ja que deve ser o resultado final
         return x
 
-#Bias da IA
+    # Bias da IA
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -50,12 +49,11 @@ class SRCNN(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-#Conversor de imagem RGB para Ycbcr
-
+# Conversor de imagem RGB para Ycbcr
 def rgb_to_ycbcr(img):
     return img.convert("YCbCr")
 
-#Separa a imagem em frações para treinar mais eficientemente
+# Separa a imagem em frações para treinar mais eficientemente
 def random_crop(img, crop_size):
     w, h = img.size
     if w < crop_size or h < crop_size:
@@ -65,49 +63,59 @@ def random_crop(img, crop_size):
     y = random.randint(0, h - crop_size)
     return img.crop((x, y, x + crop_size, y + crop_size))
 
-#Processamento de imagem, filtros e downsacale
-
+# Processamento de imagem, filtros e downsacale
 def preprocess_y(img, scale=2, crop_size=128):
-    #Usado para a imagem em LR e HR ao mesmo tempo para consistência
-    img = random_crop(img, crop_size)
-
-    #Imagem HR (imagem de alta resolução)
+    # Usado para a imagem em LR e HR ao mesmo tempo para consistência
+    img = random_crop(img, crop_size)  # Imagem HR (imagem de alta resolução)
     img_ycbcr = rgb_to_ycbcr(img)
-    y_hr, _, _ = img_ycbcr.split()  #Separa o Valor "Y" do Ycbcr
-    
-    #Gaussian Blur Sendo Aplicado antes da Downscale
-    blurred = img.filter(ImageFilter.GaussianBlur(radius=0.55))
-    """
-    Processo de Downscaling da imagem para a IA
-    """
+    y_hr, _, _ = img_ycbcr.split()  # Separa o Valor "Y" do Ycbcr
 
-    img_lr = blurred.resize((crop_size // scale, crop_size // scale), Image.BICUBIC)
-    #Faz o downscaling da imagem baseado no valor da scale. Ex. scale = 2 divide a altura e largura por 2
-    img_lr_up = img_lr.resize((crop_size, crop_size), Image.BICUBIC)    #Faz o Aumento para a resolução original da imagem
-    y_lr, _, _ = rgb_to_ycbcr(img_lr_up).split()    #Separa o Valor "Y" do Ycbcr
+    # Gaussian Blur Sendo Aplicado antes da Downscale
+    blurred = img.filter(ImageFilter.GaussianBlur(radius=random.uniform(0, 0.5)))
 
-    #Normaliza os valores usando o Tensor
+    """ Processo de Downscaling da imagem para a IA """
+    img_lr = blurred.resize((crop_size // scale, crop_size // scale), Image.BICUBIC)  # Faz o downscaling da imagem baseado no valor da scale. Ex. scale = 2 divide a altura e largura por 2
+    img_lr_up = img_lr.resize((crop_size, crop_size), Image.BICUBIC)  # Faz o Aumento para a resolução original da imagem
+    y_lr, _, _ = rgb_to_ycbcr(img_lr_up).split()  # Separa o Valor "Y" do Ycbcr
+
+    # Normaliza os valores usando o Tensor
     to_tensor = ToTensor()
     return to_tensor(y_lr), to_tensor(y_hr)
 
-#Dataset
-
+# Dataset
 class SRDataset(Dataset):
-    def __init__(self, image_dir, scale=2):
+    def __init__(self, image_dir, scale=2, crop_size=128, repeat_factor=10):
         self.image_paths = glob.glob(os.path.join(image_dir, "*.png"))
         self.scale = scale
+        self.crop_size = crop_size
+        self.repeat_factor = repeat_factor  # repete a quantidade de vezes que chama a database, melhor desativar em database grandes o suficiente
+        # desativar somente otimiza um pouco o codigo, tendo uma chamada a menos, mas se o valor for um melhor deixar desativado por redundância
 
     def __len__(self):
-        return len(self.image_paths)
+        return len(self.image_paths) * self.repeat_factor  # multiplica as chamadas
 
     def __getitem__(self, idx):
-        img = Image.open(self.image_paths[idx]).convert("RGB")
-        y_lr, y_hr = preprocess_y(img, scale=self.scale)
+        # Pega uma imagem aleatoria
+        img = Image.open(random.choice(self.image_paths)).convert("RGB")
+        # pega a o valor Y do preprocess
+
+        y_lr, y_hr = preprocess_y(img, scale=self.scale, crop_size=self.crop_size)
+
+        #Espelha imagem, e vira em angulos, se o valor random(float - 0, 1), for maior que o numero escolhido ele altera a imagem
+        if random.random() > 10:  # Espelha a imagem na horizontal
+            y_lr = torch.flip(y_lr, dims=[2])
+            y_hr = torch.flip(y_hr, dims=[2])
+        if random.random() > 10:  # Espelha a imagem na vertical
+            y_lr = torch.flip(y_lr, dims=[1])
+            y_hr = torch.flip(y_hr, dims=[1])
+        if random.random() > 10:  # Muda o angulo entre -180 ate 180
+            angle = random.uniform(-180, 180)
+            y_lr = TF.rotate(y_lr, angle)
+            y_hr = TF.rotate(y_hr, angle)
+
         return y_lr, y_hr
 
-
-#Metricas usadas para verificar o grau de acerto
-
+# Metricas usadas para verificar o grau de acerto
 def calculate_psnr(sr, hr):
     mse = torch.mean((sr - hr) ** 2).item()
     if mse == 0:
@@ -117,27 +125,17 @@ def calculate_psnr(sr, hr):
 def calculate_ssim(sr, hr):
     sr_img = sr.squeeze().cpu().numpy()
     hr_img = hr.squeeze().cpu().numpy()
-
     # Ensure it's strictly 2D
     if sr_img.ndim == 3:  # (C,H,W)
         sr_img = sr_img[0]
         hr_img = hr_img[0]
+    return ssim(sr_img, hr_img, data_range=1.0)
 
-    min_dim = min(sr_img.shape[-2:])  # height or width
-    win_size = 7 if min_dim >= 7 else min_dim if min_dim % 2 == 1 else min_dim - 1
-    # force odd win_size <= min_dim
-
-    return ssim(sr_img, hr_img, data_range=1.0, win_size=win_size)
-
-
-
-#Treinamento da IA
-
+# Treinamento da IA
 def train(model, dataloader, epochs=10, lr=1e-4, device="cuda"):
     model = model.to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
-
     history_loss = []
     history_psnr = []
     history_ssim = []
@@ -145,38 +143,32 @@ def train(model, dataloader, epochs=10, lr=1e-4, device="cuda"):
     for epoch in range(epochs):
         model.train()
         epoch_loss = 0.0
-
         for i, (lr_img, hr_img) in enumerate(dataloader):
             lr_img, hr_img = lr_img.to(device), hr_img.to(device)
-
             # Forward
             preds = model(lr_img)
             loss = criterion(preds, hr_img)
-
             # Backward
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
             epoch_loss += loss.item()
 
         avg_loss = epoch_loss / len(dataloader)
         history_loss.append(avg_loss)
 
-        # ---------------- Validation step ----------------
+        # Calculo para Validação do PSNR e SSIM
         model.eval()
         psnr_total, ssim_total = 0.0, 0.0
         with torch.no_grad():
             for lr_img, hr_img in dataloader:
                 lr_img, hr_img = lr_img.to(device), hr_img.to(device)
                 preds = model(lr_img)
-
                 psnr_total += calculate_psnr(preds, hr_img)
                 ssim_total += calculate_ssim(preds, hr_img)
 
         avg_psnr = psnr_total / len(dataloader)
         avg_ssim = ssim_total / len(dataloader)
-
         history_psnr.append(avg_psnr)
         history_ssim.append(avg_ssim)
 
@@ -185,83 +177,77 @@ def train(model, dataloader, epochs=10, lr=1e-4, device="cuda"):
 
     return model, history_loss, history_psnr, history_ssim
 
-#Salva a imagem para validação
-
+# Salva a imagem para validação
 def evaluate(model, img_path, device):
+    timer_eval = time.perf_counter()
     model.eval()
-
     img = Image.open(img_path).convert("YCbCr")
     y, cb, cr = img.split()
     y = ToTensor()(y).unsqueeze(0).to(device)
-
     with torch.no_grad():
         out = model(y)
-
     out_img_y = out.squeeze(0).cpu().clamp(0, 1)
     out_img_y = ToPILImage()(out_img_y)
-
     cb_up = cb.resize(out_img_y.size, Image.BICUBIC)
-    cr_up = cr.resize(out_img_y.size, Image.BICUBIC)
-    #Aumento de resolução Bicubico das cores cb e cr
-
+    cr_up = cr.resize(out_img_y.size, Image.BICUBIC)  # Aumento de resolução Bicubico das cores cb e cr
     out_img = Image.merge("YCbCr", [out_img_y, cb_up, cr_up]).convert("RGB")
-    return out_img
-    #mescla o Y com o cbcr e converte para RGB
+    timer_eval_final = time.perf_counter()
+    total = timer_eval_final - timer_eval
+    with open("Tempo_exec.txt", "a") as file:
+        file.write(f"Tempo Upscaling: {total} segundos\n")
+    print(f"Modelo criou a imagem em: {total} segundos")
+    return out_img  # mescla o Y com o cbcr e converte para RGB
 
-#Script para treinar a IA
-
+# Script para treinar a IA
 if __name__ == "__main__":
-    #Configuração do Treino
-    image_dir = "./Database"
-    batch_size = 2
-    epochs = 10000
-    #Repetições pela database. 1 epoch igual a um loop por todas as imagens
+    # Configuração do Treino
+    image_dir = "./Database/Set5"
+    batch_size = 4
+    epochs = 1000  # Repetições pela base de dados. 1 epoch igual a um loop por todas as imagens
     scale = 2
-
     dataset = SRDataset(image_dir, scale=scale)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
     model = SRCNN()
 
     # Train
     model, loss_hist, psnr_hist, ssim_hist = train(
-        model, dataloader, epochs=epochs, lr=1e-4,
-        device="cuda" if torch.cuda.is_available() else "cpu"
+        model, dataloader, epochs=epochs, lr=1e-4, device=device
     )
-
     torch.save(model.state_dict(), "srcnn.pth")
     print("treino finalizado, salvando modelo")
 
-    #Grafico do Plot Loss / PSNR / SSIM
-    plt.figure(figsize=(12, 4))
+    # Final do Timer
+    timer_final = time.perf_counter()
+    timer_total = timer_final - timer
+    with open("Tempo_exec.txt", "w") as file:
+        file.write(f"Tempo Treino: {timer_total} segundos\n")
+    print(f"Treino feito em: {timer_total} segundos")
 
+    # Grafico do Plot Loss / PSNR / SSIM
+    plt.figure(figsize=(12, 4))
     plt.subplot(1, 3, 1)
     plt.plot(loss_hist, marker='o')
     plt.title("Perca no treino")
     plt.xlabel("Epoch")
-    plt.ylabel("Perca MSE")
-
+    plt.ylabel("Loss")
     plt.subplot(1, 3, 2)
     plt.plot(psnr_hist, marker='o', color='orange')
     plt.title("PSNR")
     plt.xlabel("Epoch")
     plt.ylabel("dB")
-
     plt.subplot(1, 3, 3)
     plt.plot(ssim_hist, marker='o', color='green')
     plt.title("SSIM")
     plt.xlabel("Epoch")
     plt.ylabel("Score")
-
     plt.tight_layout()
     plt.savefig("Metricas.png")
     plt.show()
 
-    #Resultado final após treino
+    # Resultado final após treino
     pred_img = evaluate(model, dataset.image_paths[0], device)
     pred_img.save("Resultado.png")
-
     hr = Image.open(dataset.image_paths[0]).convert("RGB")
     hr.save("Original.png")
-
-    print("Salvo o resultado a imagem original e a data para comparação")
+    print("Salvando tempo")
+    print("Salvando o resultado, a imagem original e a data para comparação")
