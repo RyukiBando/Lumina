@@ -102,13 +102,13 @@ class SRDataset(Dataset):
         y_lr, y_hr = preprocess_y(img, scale=self.scale, crop_size=self.crop_size)
 
         #Espelha imagem, e vira em angulos, se o valor random(float - 0, 1), for maior que o numero escolhido ele altera a imagem
-        if random.random() > 10:  # Espelha a imagem na horizontal
+        if random.random() > 0.5:  # Espelha a imagem na horizontal
             y_lr = torch.flip(y_lr, dims=[2])
             y_hr = torch.flip(y_hr, dims=[2])
-        if random.random() > 10:  # Espelha a imagem na vertical
+        if random.random() > 0.5:  # Espelha a imagem na vertical
             y_lr = torch.flip(y_lr, dims=[1])
             y_hr = torch.flip(y_hr, dims=[1])
-        if random.random() > 10:  # Muda o angulo entre -180 ate 180
+        if random.random() > 0.2:  # Muda o angulo entre -180 ate 180
             angle = random.uniform(-180, 180)
             y_lr = TF.rotate(y_lr, angle)
             y_hr = TF.rotate(y_hr, angle)
@@ -253,4 +253,5 @@ if __name__ == "__main__":
     hr = Image.open(dataset.image_paths[0]).convert("RGB")
     hr.save("Original.png")
     print("Salvando tempo")
+
     print("Salvando o resultado, a imagem original e a data para comparação")
