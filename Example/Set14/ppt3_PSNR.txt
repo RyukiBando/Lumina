@@ -1,0 +1,2 @@
+PSNR SRCNN: 31.25
+PSNR Bicubico: 22.58
