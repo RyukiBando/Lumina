@@ -26,37 +26,55 @@ Simples, baixe o arquivo modelo.py e coloque dentro de uma pasta, jubto com o ar
 
 ## Resultado
 #### Set5
-*Modelo*  | *Escala* | *Bicúbico* | *SRCNN* | *SSIM*
-:---  | :---: | :---: | :---: |  :---: |
-**Original** | 3x | 30.39dB | 32.75dB | 0.9090
-**SRCNN-Pytorch** | 3x | 30.38dB | 32.39dB | 0.9090
+|      *Modelo*     | *Escala* | *PSNR* | *SSIM* |
+| :---------------- | :------: | :-----: |  :---: |
+|   **Original**    |    3x    | 32.75dB | 0.9090 |
+| **SRCNN-Pytorch** |    3x    | 37.53dB | 0.9857 |
+
 #### Set14
-*Modelo* | *Escala* | *Bicúbico* | *SRCNN* | *SSIM*
-:--- | :---: | :---: | :---: |  :---: |
-**Original** | 3x | 30.39dB | 32.75dB | 0.9090
-**SRCNN-Pytorch** | 3x | 30.38dB | 32.39dB | 0.9090
+|      *Modelo*     | *Escala* | *PSNR*  | *SSIM* |
+| :---------------- | :------: | :-----: |  :---: |
+|   **Original**    |    3x    | 29.30dB | 0.8215 |
+| **SRCNN-Pytorch** |    3x    | 32.06dB | 0.9118 |
 
 ### Exemplos
 * **Ground Truth** e imagem original de alta resolução, para comparação
 * **Bicúbico** metodo usado para baixa a resolução da imagem, imagem usada para recriar a de alta resolução na IA
 * **SRCNN** Utilizando o modelo SRCNN para aumentar a imagem Bicúbica
+#### Set5
+|                Ground Truth                 |                Bicúbico x3                 |                 SRCNN x3                 |
+| :-----------------------------------------: | :----------------------------------------: | :--------------------------------------: |
+| ![](./Example/Set5/butterfly_Original.png)  | ![](Example/Set5/butterfly_BicubicX3.png)  |  ![](Example/Set5/butterfly_SRCNNX3.png) |
+|                                             |         <sub>**PSNR 22.69dB**</sub>        |      <sub>**PSNR 29.26dB**</sub>         |
+|     ![](Example/Set5/head_Original.png)     |    ![](Example/Set5/head_BicubicX3.png)    |    ![](Example/Set5/head_SRCNNX3.png)    |
+|                                             |         <sub>**PSNR 31.66dB**</sub>        |      <sub>**PSNR 35.50dB**</sub>         |
+|     ![](Example/Set5/baby_Original.png)     |    ![](Example/Set5/baby_BicubicX3.png)    |    ![](Example/Set5/baby_SRCNNX3.png)    |
+|                                             |         <sub>**PSNR 32.61dB**</sub>        |      <sub>**PSNR 38.62dB**</sub>         |
+|     ![](Example/Set5/woman_Original.png)    |   ![](Example/Set5/woman_BicubicX3.png)    |   ![](Example/Set5/woman_SRCNNX3.png)    |
+|                                             |         <sub>**PSNR 27.21dB**</sub>        |      <sub>**PSNR 33.85dB**</sub>         |
+|     ![](Example/Set5/bird_Original.png)     |    ![](Example/Set5/bird_BicubicX3.png)    |    ![](Example/Set5/bird_SRCNNX3.png)    |
+|                                             |         <sub>**PSNR 31.14dB**</sub>        |      <sub>**PSNR 38.98dB**</sub>         |
 
-|           Ground Truth           |               Bicúbico x3               |               SRCNN x3               |
-| :------------------------------: | :------------------------------------: | :----------------------------------: |
-| ![](./Examples/butterfly_GT.png) | ![](Examples/butterfly_bicubic_x3.png) | ![](Examples/butterfly_srcnn_x3.png) |
-|                                  |    <sub>PSNR 32.75dB SSIM 0.9890</sub> |  <sub>PSNR 32.75dB SSIM 0.9890</sub> |
-|    ![](Examples/head_GT.png)     |   ![](Examples/head_bicubic_x3.png)    |   ![](Examples/head_srcnn_x3.png)    |
-|                                  |    <sub>PSNR 32.75dB SSIM 0.9890</sub> |  <sub>PSNR 32.75dB SSIM 0.9890</sub> |
-|    ![](Examples/woman_GT.png)    |   ![](Examples/woman_bicubic_x3.png)   |   ![](Examples/woman_srcnn_x3.png)   |
-|                                  |    <sub>PSNR 32.75dB SSIM 0.9890</sub> |  <sub>PSNR 32.75dB SSIM 0.9890</sub> |
-|    ![](Examples/bird_GT.png)     |   ![](Examples/bird_bicubic_x3.png)    |   ![](Examples/bird_srcnn_x3.png)    |
-|                                  |    <sub>PSNR 32.75dB SSIM 0.9890</sub> |  <sub>PSNR 32.75dB SSIM 0.9890</sub> |
-|    ![](Examples/baby_GT.png)     |   ![](Examples/baby_bicubic_x3.png)    |   ![](Examples/baby_srcnn_x3.png)    |
-|                                  |    <sub>PSNR 32.75dB SSIM 0.9890</sub> |  <sub>PSNR 32.75dB SSIM 0.9890</sub> |
+#### Set14
+|                Ground Truth                 |                Bicúbico x3                 |                 SRCNN x3                 |
+| :-----------------------------------------: | :----------------------------------------: | :--------------------------------------: |
+|    ![](Example/Set14/zebra_Original.png)    |   ![](Example/Set14/zebra_BicubicX3.png)   |   ![](Example/Set14/zebra_SRCNNX3.png)   |
+|                                             |         <sub>**PSNR 25.37dB**</sub>        |       <sub>**PSNR 31.24dB**</sub>        |
+|    ![](Example/Set14/ppt3_Original.png)     |   ![](Example/Set14/ppt3_BicubicX3.png)    |   ![](Example/Set14/ppt3_SRCNNX3.png)    |
+|                                             |         <sub>**PSNR 22.58dB**</sub>        |       <sub>**PSNR 31.25dB**</sub>        |
+|    ![](Example/Set14/barbara_Original.png)  |   ![](Example/Set14/barbara_BicubicX3.png) |   ![](Example/Set14/barbara_SRCNNX3.png) |
+|                                             |         <sub>**PSNR 24.88dB**</sub>        |       <sub>**PSNR 31.66dB**</sub>        |
+|    ![](Example/Set14/comic_Original.png)    |   ![](Example/Set14/comic_BicubicX3.png)   |   ![](Example/Set14/comic_SRCNNX3.png)   |
+|                                             |         <sub>**PSNR 21.80dB**</sub>        |       <sub>**PSNR 27.79dB**</sub>        |
+|    ![](Example/Set14/lenna_Original.png)    |   ![](Example/Set14/lenna_BicubicX3.png)   |   ![](Example/Set14/lenna_SRCNNX3.png)   |
+|                                             |         <sub>**PSNR 30.33dB**</sub>        |       <sub>**PSNR 34.62dB**</sub>        |
+
 ## Pre-requisitos
 
-* Python 3.13
-  * Numpy X.X.X
-  * Torch 2.8.0
-  * Torchvision X.X.X
-  * Pillow X.X.X
+* Python 3.13.X
+  * Numpy 2.2.6
+  * Torch 2.9.1
+  * Torchvision 0.24.1
+  * Pillow 11.3.0
+  * Matplotlib 3.10.8
+  * Scikit-image 0.25.2
