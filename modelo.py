@@ -19,9 +19,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Usando {device}")
 
 # Configuração do Treino
-continuar = False
-image_dir = "./Database/Set14"
-img_idx = 0 #Index da imagem que vai utilizada na demonstração final
+continuar = True
+image_dir = "./Database/Set5"
+img_idx = 4 #Index da imagem que vai utilizada na demonstração final
 batch_size = 4
 
 # Em Databases maiores (Ex. DIV2K), valores recomendados são: 32, 64, 128 e talvez 256 dependo da quantidade de memoria disponivel
@@ -29,17 +29,17 @@ batch_size = 4
 # (Ex. 128 batch demora 2 seg por epoch, mas 16 batch demora 8 seg por epoch)
 # porem em databases menores (Ex. Set5) coloque um valor menor (Ex. 2, 4, 8, 16)
 
-epochs = 20000  # Repetições
+epochs = 1  # Repetições
 scale = 3
 lr = 1e-4
 workers = 0
-# Default = 0, Aumente o valor em databases grandes
+#Numero de Threads usando, Default = 0, Aumente o valor em databases grandes
 
 #Criar pasta para salvar resultado
 Resultado = "./Resultado"
 Modelo = "./Best_modelo"
-results_dir = os.path.join(Resultado, f"Set14 scale:{scale}")
-versao = os.path.join(Modelo, f"Set14 scale:{scale}")
+results_dir = os.path.join(Resultado, f"Set5 scale:{scale}")
+versao = os.path.join(Modelo, f"Set5 scale:{scale}")
 os.makedirs(results_dir, exist_ok=True)
 os.makedirs(versao, exist_ok=True)
 
@@ -67,10 +67,6 @@ class SRCNN(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-# Conversor de imagem RGB para Ycbcr
-def rgb_to_ycbcr(img):
-    return img.convert("YCbCr")
-
 # Separa a imagem em frações para treinar mais eficientemente
 def random_crop(img, crop_size):
     w, h = img.size
@@ -82,29 +78,23 @@ def random_crop(img, crop_size):
     return img.crop((x, y, x + crop_size, y + crop_size))
 
 # Processamento de imagem, filtros e downscale
-def preprocess_y(img, scale=scale, crop_size=128):
+def preprocess_y(img, scale, crop_size):
     # Usado para a imagem em LR e HR ao mesmo tempo para consistência
-    img = random_crop(img, crop_size)  # Imagem HR (imagem de alta resolução)
-    img_ycbcr = rgb_to_ycbcr(img)
+    img = random_crop(img, crop_size) 
+    img_ycbcr = img.convert("YCbCr")
     y_hr, _, _ = img_ycbcr.split()  # Separa o Valor "Y" do Ycbcr
-
-    # Gaussian Blur Sendo Aplicado antes da Downscale
-    blurred = img.filter(ImageFilter.GaussianBlur(radius=random.uniform(0, 0.5)))
-
-    """ Processo de Downscaling da imagem para a IA """
-    img_lr = blurred.resize((crop_size // scale, crop_size // scale), Image.BICUBIC)  # Faz o downscaling da imagem baseado no valor da scale. Ex. scale = 2 divide a altura e largura por 2
-    img_lr_up = img_lr.resize((crop_size, crop_size), Image.BICUBIC)  # Faz o Aumento para a resolução original da imagem
-    y_lr, _, _ = rgb_to_ycbcr(img_lr_up).split()  # Separa o Valor "Y" do Ycbcr
-
+    #Blur sendo aplicado antes do downsampling
+    blurred = y_hr.filter(ImageFilter.GaussianBlur(radius=random.uniform(0, 0.5)))
+    lr_small = blurred.resize((crop_size // scale, crop_size // scale), Image.BICUBIC)
+    y_lr = lr_small.resize((crop_size, crop_size), Image.BICUBIC)
     # Normaliza os valores usando o Tensor
     to_tensor = ToTensor()
     return to_tensor(y_lr), to_tensor(y_hr)
 
 # Dataset
 class SRDataset(Dataset):
-    def __init__(self, image_dir, scale=scale, crop_size=128):
+    def __init__(self, image_dir, scale, crop_size=33):
         self.image_paths = glob.glob(os.path.join(image_dir, "*.png"))
-        self.scale = scale
         self.crop_size = crop_size
 
     def __len__(self):
@@ -113,9 +103,9 @@ class SRDataset(Dataset):
     def __getitem__(self, idx):
         # Pega uma imagem aleatoria
         img = Image.open(random.choice(self.image_paths)).convert("RGB")
-        # pega a o valor Y do preprocess
 
-        y_lr, y_hr = preprocess_y(img, scale=self.scale, crop_size=self.crop_size)
+        y_lr, y_hr = preprocess_y(img, scale, crop_size=self.crop_size)
+        # pega a o valor Y do preprocess
 
         #Espelha imagem, e vira em angulos, se o valor random(float - 0, 1), for maior que o numero escolhido ele altera a imagem
         if random.random() > 0.5:  # Espelha a imagem na horizontal
@@ -124,11 +114,10 @@ class SRDataset(Dataset):
         if random.random() > 0.5:  # Espelha a imagem na vertical
             y_lr = torch.flip(y_lr, dims=[1])
             y_hr = torch.flip(y_hr, dims=[1])
-        if random.random() > 0.2:  # Muda o angulo entre -180 ate 180
-            angle = random.uniform(-180, 180)
+        if random.random() > 0.8: # Muda o angulo
+            angle = random.uniform(-45, 45)
             y_lr = TF.rotate(y_lr, angle)
             y_hr = TF.rotate(y_hr, angle)
-
         return y_lr, y_hr
 
 # Metricas usadas para verificar o grau de acerto
@@ -141,7 +130,7 @@ def calculate_psnr(sr, hr):
 def calculate_ssim(sr, hr):
     sr_img = sr.squeeze().cpu().numpy()
     hr_img = hr.squeeze().cpu().numpy()
-    # Ensure it's strictly 2D
+    # 2D
     if sr_img.ndim == 3:  # (C,H,W)
         sr_img = sr_img[0]
         hr_img = hr_img[0]
@@ -242,16 +231,18 @@ def evaluate(model, img_path, device, scale):
         out = model(y)
     out_img_y = out.squeeze(0).cpu().clamp(0, 1)
     out_img_y = ToPILImage()(out_img_y)
-    
-    w, h = img.size
-    lr = img.resize((w // scale, h // scale), Image.BICUBIC)
-    bicubic_up = lr.resize((w, h), Image.BICUBIC)
-    y_bicubic, cb_bicubic, cr_bicubic = bicubic_up.split()
-    out_img_bicubic = Image.merge("YCbCr", [y_bicubic, cb_bicubic, cr_bicubic]).convert("RGB")
 
     cb_up = cb.resize(out_img_y.size, Image.BICUBIC)
     cr_up = cr.resize(out_img_y.size, Image.BICUBIC)  # Aumento de resolução Bicubico das cores cb e cr
     out_img = Image.merge("YCbCr", [out_img_y, cb_up, cr_up]).convert("RGB")
+    total_time = time.perf_counter() - timer_eval
+    print(f"Modelo criou a imagem em: {total_time:.6f} segundos")
+
+    #bicubico
+    w, h = img.size
+    lr = img.resize((w // scale, h // scale), Image.BICUBIC)
+    bicubic_up = lr.resize((w, h), Image.BICUBIC)
+    y_bicubic, cb_bicubic, cr_bicubic = bicubic_up.split()
     out_img_bicubic = Image.merge("YCbCr", [y_bicubic, cb_bicubic, cr_bicubic]).convert("RGB")
 
     sr_tensor = ToTensor()(out_img_y)
@@ -259,10 +250,8 @@ def evaluate(model, img_path, device, scale):
     bi_tensor = ToTensor()(y_bicubic)
     psnr_srcnn = calculate_psnr(sr_tensor, hr_tensor)
     psnr_bicubic = calculate_psnr(bi_tensor, hr_tensor)
-    total_time = time.perf_counter() - timer_eval
-    print(f"Modelo criou a imagem em: {total_time:.6f} segundos")
-    print(f"PSNR da Imagem: {psnr_srcnn:.2f} dB")
 
+    print(f"PSNR da Imagem: {psnr_srcnn:.2f} dB")
     out_img_bicubic.save(os.path.join(results_dir, f"BicubicX{scale}.png"))
     with open(os.path.join(results_dir, "validacao_PSNR.txt"), "w") as file:
         file.write(f"PSNR SRCNN: {psnr_srcnn:.2f}\n")
@@ -272,7 +261,8 @@ def evaluate(model, img_path, device, scale):
 # Script para treinar a IA
 if __name__ == "__main__":
     # inicio temporizador
-    timer = time.perf_counter()
+    if continuar == False:
+        timer = time.perf_counter()
 
     dataset = SRDataset(image_dir, scale)
     dataloader = DataLoader(dataset, batch_size, shuffle=True, num_workers=workers)
@@ -283,32 +273,34 @@ if __name__ == "__main__":
     )
 
     # Final do Timer
-    timer_final = time.perf_counter()
-    timer_total = timer_final - timer
-    with open(os.path.join(results_dir, "tempo_exec.txt"), "w") as file:
-        file.write(f"Tempo Treino: {timer_total:.2f} segundos\n")
-    print(f"Treino feito em: {timer_total:.2f} segundos")
+    if continuar == False:
+        timer_final = time.perf_counter()
+        timer_total = timer_final - timer
+        with open(os.path.join(results_dir, "tempo_exec.txt"), "w") as file:
+            file.write(f"Tempo Treino: {timer_total:.2f} segundos\n")
+        print(f"Treino feito em: {timer_total:.2f} segundos")
 
     # Grafico do Plot Loss / PSNR / SSIM
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 3, 1)
-    plt.plot(loss_hist, marker='o')
-    plt.title("Perca no treino")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.subplot(1, 3, 2)
-    plt.plot(psnr_hist, marker='o', color='orange')
-    plt.title("PSNR")
-    plt.xlabel("Epoch")
-    plt.ylabel("dB")
-    plt.subplot(1, 3, 3)
-    plt.plot(ssim_hist, marker='o', color='green')
-    plt.title("SSIM")
-    plt.xlabel("Epoch")
-    plt.ylabel("Score")
-    plt.tight_layout()
-    plt.savefig(os.path.join(results_dir, "Metricas.png"))
-    plt.show()
+    if continuar == False:
+        plt.figure(figsize=(12, 4))
+        plt.subplot(1, 3, 1)
+        plt.plot(loss_hist, marker='o')
+        plt.title("Perca no treino")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.subplot(1, 3, 2)
+        plt.plot(psnr_hist, marker='o', color='orange')
+        plt.title("PSNR")
+        plt.xlabel("Epoch")
+        plt.ylabel("dB")
+        plt.subplot(1, 3, 3)
+        plt.plot(ssim_hist, marker='o', color='green')
+        plt.title("SSIM")
+        plt.xlabel("Epoch")
+        plt.ylabel("Score")
+        plt.tight_layout()
+        plt.savefig(os.path.join(results_dir, "Metricas.png"))
+        plt.show()
 
     # Upscale de qualquer imagem
     #input_image = "./Input/xxxx.png"
